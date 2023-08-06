@@ -1,58 +1,57 @@
 #include "kernel/types.h"
-#include "kernel/stat.h"
-#include "user/user.h"
 #include "kernel/param.h"
+#include "user/user.h"
+#define MAX_LEN 512
 
-#define FDSTDIN 0 // standard input file descriptor
-#define FDSTDOUT 1
+int main(int argc, char *argv[]) {
+    // 参数数目不对
+    if (argc - 1 >= MAXARG || argc < 2) {
+        printf("error! xargs: please check the number of arguments.\n");
+        exit(1);
+    }
+    // 存储行/定位指针和exec的参数数组
+    char line[MAX_LEN];
+    char *p = line;
+    char *x_argv[MAXARG];
+    int i;
+    // 存储初始参数
+    for (i = 1; i < argc; i++) {
+        x_argv[i - 1] = argv[i];
+    }
+    //记录读取到的数据字节数
+    int rsz = sizeof(char);
+    while (rsz == sizeof(char)) {
+        // 定位参数起始 结束位置和参数次序
+        int word_begin = 0;
+        int word_end = 0;
+        int arg_cnt = i - 1;
+        //读取一行
+        while (1) {
+            rsz = read(0, p, sizeof(char));
+            if (++word_end >= MAX_LEN) {
+                printf("xargs: arguments too long.\n");
+                exit(1);
+            }
 
-int main(int argc,char* argv[])
-{
-   char buf[10]; 
-   char* cur[MAXARG];// pointer array cur[i] is a pointer	
-   int i=0,j=0;  
-   for(i=0;i<argc-1;i++)
-   {
-      cur[i]=argv[i+1];
-   }   
-   cur[i]=malloc(512);
-   while(read(FDSTDIN,buf,1)==1)
-   { 
-      if(i==argc-1) printf("%s,%s\n",buf,cur[i]);	   
-      switch(buf[0])
-      {	      
-        case '\n':
-	{
-           	
-           if(fork()==0)
-	   {
-	      exit(0);   
-	   }
-	   wait(0);
-	   for(int k=argc-1;k<=i;k++)
-	   {
-	      memset(cur[k],0,512);
-	       free(cur[k]);
-	   }
-           i=argc-1;
-	   cur[i]=malloc(512);
-           j=0;	   
-	   break;
-	}
-	case ' ':
-	{
-	   i++;	
-	   j=0;
-	   if(i<MAXARG) cur[i]=malloc(512);
-           break;	  
-	}
-	default :
-	{
-	  cur[i][j++]=buf[0];
-	  break;
-	}
-
-      }
-   }	   
-   exit(0);
+            if (*p == ' ' || *p == '\n' || rsz != sizeof(char)) {
+                //用字符串结束标志替换' '，'\n'和空字符
+                *p = 0;
+                x_argv[arg_cnt++] = &line[word_begin];
+                //表明下一个参数的位置，在当前参数结束符之后
+                word_begin = word_end;
+                if (arg_cnt >= MAXARG) {
+                    printf("xargs: too many arguments.\n");
+                    exit(1);
+                }
+                if (*p == '\n' || rsz != sizeof(char))
+                    break;
+            }
+            ++p;
+        }
+        if (fork() == 0) {
+            exec(argv[1], x_argv);
+        }
+        wait(0);
+    }
+    exit(0);
 }

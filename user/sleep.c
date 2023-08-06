@@ -8,6 +8,5 @@ int main(int argc, char const *argv[])
     exit(1);
   }
   sleep(atoi(argv[1]));
-  //printf(argv[0]);
   exit(0);
 }
